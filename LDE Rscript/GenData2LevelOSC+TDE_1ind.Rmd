@@ -124,8 +124,23 @@ DLOmodel <- function(t, prevState, parms) {
 TVcovType='OU'
 # d(eta) = a*(mu-eta)dt + sigma*dW = (a*mu - a*eta)*dt + sigma*dW
 # Thus: A = -a, b = a*mu
+
+
+# a= 0.03; A = -1*a; mu = 0; b = a*mu
+# sigma11 = sqrt(0.05); Q = sigma11^2
+
+# a= 0.03; A = -1*a; mu = 0; b = a*mu
+# sigma11 = sqrt(0.1); Q = sigma11^2
+
+# a= 0.1; A = -1*a; mu = 0; b = a*mu  # complex Good
+# sigma11 = sqrt(0.18); Q = sigma11^2
+
 a= 0.03; A = -1*a; mu = 0; b = a*mu
-sigma11 = sqrt(0.05);Q = sigma11^2
+sigma11 = sqrt(0.1); Q = sigma11^2 # 0.18
+
+# a= 0.1; A = -1*a; mu = 0; b = a*mu    # complex Good
+# sigma11 = sqrt(0.05); Q = sigma11^2
+
 A_del = exp(A*deltaT)
 b_del= 1/A*(exp(A*deltaT)-1)*b
 #Process noise covariance matrix, 
@@ -134,33 +149,47 @@ A_hashtag = kronecker(A,1) + kronecker(1,A)
 Psi = matrix(1/A_hashtag*(exp(A_hashtag*deltaT)-1)*Q)
 
 # #Generate TVcov using the univariate OU model
-# a0 = runif(totalPersons,-3,3) #Initial condition means
-# P0 = 0.1  #Initial condition covariance matrix #0.43
+a0 = runif(totalPersons,-2,2) #Initial condition means
+P0 = 0.1  #Initial condition covariance matrix #0.43
+R = 0.1 #Measurement error variance
+cov3=c()
+for(a in a0){
+cov3_OU1 = simStateSpaceData(a0=a, P0=matrix(P0), Q=Psi,R=matrix(R),Phi=A_del,Lambda = 1,
+                  alpha=b_del,tau = rep(0,1), nt=maxT+1, np=1, ne=1, ny=1, nx=0, npad=0)
+cov3<-rbind(cov3,cov3_OU1$stateData)}
+dim(cov3)
+
+par(mfrow=c(3,1))
+# plot(cov3[1:100], type='b', ylim=c(-3,3)); abline(h=0)
+# plot(cov3[101:200], type='b', ylim=c(-3,3)); abline(h=0)
+# plot(cov3[201:300], type='b', ylim=c(-3,3)); abline(h=0)
+
+plot(cov3[1:200], type='b', ylim=c(-3,3)); abline(h=0)
+plot(cov3[201:400], type='b', ylim=c(-3,3)); abline(h=0)
+hist(cov3)
+#plot(cov3[401:600], type='b', ylim=c(-3,3)); abline(h=0)
+
+summary(cov3)
+
+
+# #222
+# #Generate TVcov using the univariate OU model
+# a0 = 1.5 #Initial condition means
+# P0 = 1 #Initial condition covariance matrix #0.43
 # R = 0.1 #Measurement error variance
-# cov3=c()
-# for(a in a0){
-# cov3_OU1 = simStateSpaceData(a0=a, P0=matrix(P0), Q=Psi,R=matrix(R),Phi=A_del,Lambda = 1,
-#                   alpha=b_del,tau = rep(0,1), nt=maxT+1, np=1, ne=1, ny=1, nx=0, npad=0)
-# cov3<-rbind(cov3,cov3_OU1$stateData)}
+# cov3_OU1 = simStateSpaceData(a0=a0, P0=matrix(P0), Q=Psi,R=matrix(R),Phi=A_del,Lambda = 1,
+#                                 alpha=b_del,tau = rep(0,1),#rep(0,ny)
+#                                 nt=maxT+1, np=totalPersons/2, ne=1, ny=1, nx=0, npad=0)
+# #ne=1 #Number of latent variables;#ny=1 #Number of observed variables
+# cov3<-cov3_OU1$stateData
+# 
+# a0 = -1.5 #Initial condition means
+# cov3_OU2 = simStateSpaceData(a0=a0, P0=matrix(P0), Q=Psi,R=matrix(R),Phi=A_del,Lambda = 1,
+#                                 alpha=b_del,tau = rep(0,1),#rep(0,ny)
+#                                 nt=maxT+1, np=totalPersons/2, ne=1, ny=1, nx=0, npad=0)
+# cov3<-rbind(cov3,cov3_OU2$stateData)
 # dim(cov3)
 
-#222
-#Generate TVcov using the univariate OU model
-a0 = 1.5 #Initial condition means
-P0 = 1 #Initial condition covariance matrix #0.43
-R = 0.1 #Measurement error variance
-cov3_OU1 = simStateSpaceData(a0=a0, P0=matrix(P0), Q=Psi,R=matrix(R),Phi=A_del,Lambda = 1,
-                                alpha=b_del,tau = rep(0,1),#rep(0,ny)
-                                nt=maxT+1, np=totalPersons/2, ne=1, ny=1, nx=0, npad=0)
-#ne=1 #Number of latent variables;#ny=1 #Number of observed variables
-cov3<-cov3_OU1$stateData
-
-a0 = -1.5 #Initial condition means
-cov3_OU2 = simStateSpaceData(a0=a0, P0=matrix(P0), Q=Psi,R=matrix(R),Phi=A_del,Lambda = 1,
-                                alpha=b_del,tau = rep(0,1),#rep(0,ny)
-                                nt=maxT+1, np=totalPersons/2, ne=1, ny=1, nx=0, npad=0)
-cov3<-rbind(cov3,cov3_OU2$stateData)
-dim(cov3)
 
 # #---- TVCOV: AR(1) model
 # TVcovType='AR'
@@ -191,13 +220,6 @@ DLOmodel <- function(t, prevState, parms) {
 # y is the current estimate of the variables in the ODE system. 
 # parms is a vector or list of parameters
 # The return value of func should be a list
-
-
-# Damped Oscillator model 2
-# time-variant cov3 follows random
-# TVcovType='Rand'
-# cov3=rnorm((maxT+1)*totalPersons,0,1) #runif((maxT+1)*totalPersons,-3,3)
-# str(cov3)
 ```
 
 ### Generating one manifest variable of PA for 100 days.
@@ -228,7 +250,7 @@ for (id in 1:totalPersons) {
       #etaresid<-rnorm(1,0,sqrt(0.02))
       eta = -0.5 #+ ifelse(etaresid>0.4,0.4,etaresid) #+.1*cov2[id]
       zeta= -0.04
-      b3  =  0.3 + rnorm(1,0,sqrt(.04)) #+.2*cov1[id]
+      b3  =  0.3 + 0.1*cov1[id] + rnorm(1,0,sqrt(.04)) #+.2*cov1[id]
     parms <- c(eta, zeta, b3)
     
     # xstart<-c(x=rnorm(1,mean=0,sd=1), dx=rnorm(1,mean=0,sd=1), cov3 = runif(1,-4,4)) # OU COV: initial value for x and dx
@@ -250,7 +272,7 @@ colnames(withinFactor) = c("ID","cov1","cov2",'intcov', paste0("cov3",0:maxT), p
 
 # Plot the sample of oscillators.
 #x11()
-par(mfrow=c(2,3))
+par(mfrow=c(3,2))
 for (id in sample(1:totalPersons,6)) {
 #for (id in 1:6) {
 plot(c(min(TimeSeq), max(TimeSeq)), c(-5,5),
@@ -316,7 +338,7 @@ dataMatrix2[t+(id-1)*(maxT+1),] = y1it[id,]
 ```{r PLOTTING, echo=TRUE, eval=FALSE}
 par(mfrow=c(2,2))
 list<-sample(1:totalPersons,2)
-list=c(45,120)
+#list=c(45,120)
 
 # for (id in list) {
 # plot(c(min(TimeSeq), max(TimeSeq)), c(-3,3),
@@ -344,14 +366,14 @@ plot(c(min(TimeSeq), max(TimeSeq)), c(-5,5),
   #lines(TimeSeq, withinFactor[id,(1+4):(4+(maxT+1))], type='b', lwd=1, col='grey') # TV
 }
 
-for (id in list) {
-plot(c(min(TimeSeq), max(TimeSeq)), c(-5,5),
-     xlab="Time", ylab="Score", type='n', main='Data with Random Intercept')
-  lines(c(min(TimeSeq), max(TimeSeq)), c(-0, 0), type='l', lty=2, col=1) # setpoint
-  lines(TimeSeq, dataMatrix[(1:100)+(id-1)*(maxT+1),], type='b', lwd=1, col=id) # y
-  abline(h=y2i[id,],lty=2, col='red') # setpoint
-  #lines(TimeSeq, withinFactor[id,(1+4):(4+(maxT+1))], type='b', lwd=1, col='grey') # TV
-}
+# for (id in list) {
+# plot(c(min(TimeSeq), max(TimeSeq)), c(-5,5),
+#      xlab="Time", ylab="Score", type='n', main='Data with Random Intercept')
+#   lines(c(min(TimeSeq), max(TimeSeq)), c(-0, 0), type='l', lty=2, col=1) # setpoint
+#   lines(TimeSeq, dataMatrix[(1:100)+(id-1)*(maxT+1),], type='b', lwd=1, col=id) # y
+#   abline(h=y2i[id,],lty=2, col='red') # setpoint
+#   #lines(TimeSeq, withinFactor[id,(1+4):(4+(maxT+1))], type='b', lwd=1, col='grey') # TV
+# }
 ```
 
 
