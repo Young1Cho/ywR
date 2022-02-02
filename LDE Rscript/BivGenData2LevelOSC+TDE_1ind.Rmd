@@ -66,6 +66,7 @@ library(truncnorm)
 source("C:/Users/yw110/OneDrive/PennState/LDE/LDE_Rscript/1indicator/StateSpaceFunctions.R")
 library(ggplot2)
 require('plyr') # for 'ddply' function
+library(MASS)
 ```
 
 ### Generating data for the simulation study
@@ -116,8 +117,8 @@ DLOmodel <- function(t, prevState, parms) {
 #plot(cov3, type='b')
 ```
 
-### Function for Damped Oscillator model
-```{r OU SDE}
+### TVcov
+```{r OU SDE correlated}
 #---- Simulate data using damped oscillator model -------
 #     with individual differences
 
@@ -125,6 +126,16 @@ DLOmodel <- function(t, prevState, parms) {
 TVcovType='OU'
 # d(eta) = a*(mu-eta)dt + sigma*dW = (a*mu - a*eta)*dt + sigma*dW
 # Thus: A = -a, b = a*mu
+
+# Sigma <- matrix(c(.8, .4,
+#                   .4, .8),2,2);Sigma
+# Sigma <- matrix(c(0, 0,
+#                   0, 0),2,2);Sigma
+# bvn <- data.frame(mvrnorm(totalPersons, mu=c(0,0), Sigma = Sigma)) # from MASS package
+# names(bvn) <- c("mu1","mu2")
+# plot(bvn)
+# cor.test(bvn$mu1,bvn$mu2)
+
 
 
 # a= 0.03; A = -1*a; mu = 0; b = a*mu
@@ -136,44 +147,60 @@ TVcovType='OU'
 # a= 0.1; A = -1*a; mu = 0; b = a*mu  # complex Good
 # sigma11 = sqrt(0.18); Q = sigma11^2
 
-a= 0.03; A = -1*a; mu = 0; b = a*mu
-sigma11 = sqrt(0.1); Q = sigma11^2 # 0.18
-
 # a= 0.1; A = -1*a; mu = 0; b = a*mu    # complex Good
 # sigma11 = sqrt(0.05); Q = sigma11^2
 
+a=0.03; A= -1*a; mu=0; b = a*mu
+sigma11 = sqrt(0.1); Q = sigma11^2 # 0.18
+
 A_del = exp(A*deltaT)
-b_del= 1/A*(exp(A*deltaT)-1)*b
+b_del = 1/A*(exp(A*deltaT)-1)*b
 #Process noise covariance matrix, 
 # Psi = Cov(zeta) = irow{A_hashtag^{-1}[e^A_hashtag*deltaT - I]%*%row(Q)}
 A_hashtag = kronecker(A,1) + kronecker(1,A)
 Psi = matrix(1/A_hashtag*(exp(A_hashtag*deltaT)-1)*Q)
 
 # #Generate TVcov using the univariate OU model
-a0 = runif(totalPersons,-2,2) #Initial condition means
 P0 = 0.1  #Initial condition covariance matrix #0.43
-R = 0.1 #Measurement error variance
+R = 0.1   #Measurement error variance
 
 #TVcov for x
+a01 = runif(totalPersons,-2,2) #Initial condition means
+#mu1=bvn$mu1; b1 = a*mu1
+#b_del1 = 1/A*(exp(A*deltaT)-1)*b1
 xcov3=c()
-a0 = runif(totalPersons,-2,2) #Initial condition means
-for(a in a0){
-xcov3_OU1 = simStateSpaceData(a0=a, P0=matrix(P0), Q=Psi,R=matrix(R),Phi=A_del,Lambda = 1,
-                  alpha=b_del,tau = rep(0,1), nt=maxT+1, np=1, ne=1, ny=1, nx=0, npad=0)
-xcov3<-rbind(xcov3,xcov3_OU1$stateData)}
-dim(xcov3)
-
+for(i in 1:totalPersons){
+  a0 <- a01[i]
+  #b_del <- b_del1[i]
+  xcov3_OU1 = simStateSpaceData(a0=a0, P0=matrix(P0), Q=Psi,R=matrix(R),Phi=A_del,Lambda = 1,
+                  alpha=b_del,tau = rep(0,1), nt=(maxT+1), np=1, ne=1, ny=1, nx=0, npad=0)
+  xcov3<-rbind(xcov3,xcov3_OU1$stateData) }
+dim(xcov3);summary(xcov3)
+  
 #TVcov for y
+a02 = runif(totalPersons,-2,2)
+#mu2=bvn$mu2; b2 = a*mu2
+#b_del2 = 1/A*(exp(A*deltaT)-1)*b2
 ycov3=c()
-a0 = runif(totalPersons,-2,2)
-for(a in a0){
-ycov3_OU1 = simStateSpaceData(a0=a, P0=matrix(P0), Q=Psi,R=matrix(R),Phi=A_del,Lambda = 1,
-                  alpha=b_del,tau = rep(0,1), nt=maxT+1, np=1, ne=1, ny=1, nx=0, npad=0)
-ycov3<-rbind(ycov3,ycov3_OU1$stateData)}
-dim(ycov3)
+for(i in 1:totalPersons){
+  a0 <- a02[i]
+  #b_del <- b_del2[i]
+  ycov3_OU1 = simStateSpaceData(a0=a0, P0=matrix(P0), Q=Psi,R=matrix(R),Phi=A_del,Lambda = 1,
+                  alpha=b_del,tau = rep(0,1), nt=(maxT+1), np=1, ne=1, ny=1, nx=0, npad=0)
+  ycov3<-rbind(ycov3,ycov3_OU1$stateData)}
+dim(ycov3);summary(ycov3)
 
 cor.test(xcov3,ycov3)
-plot(xcov3[1:1500],ycov3[1:1500])
+
+par(mfrow=c(3,2))
+for (id in sample(1:totalPersons,6)) {
+#for (id in 1:6) {
+plot(c(min(TimeSeq), max(TimeSeq)), c(-3,3),
+     xlab="Time", ylab="Score", main = paste('ID =',id), type='n')
+  lines(c(min(TimeSeq), max(TimeSeq)), c(-0, 0), type='l', lty=2, col=1)   # mu=0
+  lines(TimeSeq, xcov3[(1:(maxT+1))+(maxT+1)*id], type='b', lwd=1, col=1)  # x
+  lines(TimeSeq, ycov3[(1:(maxT+1))+(maxT+1)*id], type='b', lwd=1, col=2)  # y
+}
 
 # par(mfrow=c(3,1))
 # # plot(cov3[1:100], type='b', ylim=c(-3,3)); abline(h=0)
@@ -207,18 +234,9 @@ plot(xcov3[1:1500],ycov3[1:1500])
 #                                 nt=maxT+1, np=totalPersons/2, ne=1, ny=1, nx=0, npad=0)
 # cov3<-rbind(cov3,cov3_OU2$stateData)
 # dim(cov3)
+```
 
-
-# #---- TVCOV: AR(1) model
-# TVcovType='AR'
-# cov3=c()
-# for(i in 1:totalPersons){
-#   d<-arima.sim(model=list(ar=0.8), n=(1+maxT),  sd=sqrt(0.1796))
-#   cov3<-cbind(cov3, d)
-# }
-# dim(cov3);cov3=matrix(cov3,ncol=1);dim(cov3)
-
-
+```{r}
 # Common Model
 DLOmodel <- function(t, prevState, parms) {
      x   <- prevState[1] # x[t]
@@ -226,15 +244,17 @@ DLOmodel <- function(t, prevState, parms) {
      y   <- prevState[3] # y[t]
     dy   <- prevState[4]
     cov3x <- xcov3[1+t+(id-1)*(maxT+1)] #cov3[1+t,id]
-    cov3y <- ycov3[1+t+(id-1)*(maxT+1)] #cov3[1+t,id] #cov3 따로 다시 만들긴 해야함
+    cov3y <- ycov3[1+t+(id-1)*(maxT+1)] #cov3[1+t,id]
 
     with(as.list(parms), {
     #parms <- c(eta1, zeta1, b31, coup1, 
     #           eta2, zeta2, b32, coup2)
             dx  <- dx
             d2x <- parms[1]*x + parms[2]*dx + parms[3]*cov3x + parms[4]*y
+            #d2x <- parms[1]*x + parms[2]*dx + parms[4]*y
             dy  <- dy
             d2y <- parms[5]*y + parms[6]*dy + parms[7]*cov3y + parms[8]*x
+            #d2y <- parms[5]*y + parms[6]*dy + parms[8]*x
             res <-c(dx,d2x,dy,d2y)
             list(res)
     })
@@ -276,12 +296,14 @@ for (id in 1:totalPersons) {
                   #etaresid<-rnorm(1,0,sqrt(0.02))
       eta1 = -0.5 #+ ifelse(etaresid>0.4,0.4,etaresid) #+.1*cov2[id]
       zeta1= -0.04
-      b31  =  0.3 + 0.1*cov1[id] + rnorm(1,0,sqrt(.04)) #+.2*cov1[id]
+      b31  =  0.3 + 0.1*cov1[id] + rnorm(1,0,sqrt(.04))
+      #b31  =  0.3 + rnorm(1,0,sqrt(.04)) #+.2*cov1[id]
       coup1= -0.1
         
       eta2 = -0.5 #+ ifelse(etaresid>0.4,0.4,etaresid) #+.1*cov2[id]
       zeta2= -0.04
-      b32  =  0.3 + 0.1*cov1[id] + rnorm(1,0,sqrt(.04)) #+.2*cov1[id]
+      b32  =  0.3 + 0.1*cov1[id] + rnorm(1,0,sqrt(.04))
+      #b32  =  0.3 + rnorm(1,0,sqrt(.04))
       coup2= -0.1
     parms <- c(eta1, zeta1, b31, coup1, eta2, zeta2, b32, coup2)
     
@@ -316,10 +338,11 @@ for (id in sample(1:totalPersons,6)) {
 plot(c(min(TimeSeq), max(TimeSeq)), c(-5,5),
      xlab="Time", ylab="Score", main = paste('ID =',id,' coup1=',coup1), type='n')
   lines(c(min(TimeSeq), max(TimeSeq)), c(-0, 0), type='l', lty=2, col=1) # setpoint
+  
+  lines(TimeSeq, withinFactor[id,1:(maxT+1)+2*(maxT+1)], type='b', lwd=1, col=1)     # x
   #lines(TimeSeq, withinFactor[id,1:(maxT+1)+0*(maxT+1)], type='b', lwd=2, col='grey') # TVcov_x
-  #lines(TimeSeq, withinFactor[id,1:(maxT+1)+1*(maxT+1)], type='b', lwd=1, col='grey') # TVcov_y
-  lines(TimeSeq, withinFactor[id,1:(maxT+1)+2*(maxT+1)], type='b', lwd=1, col=id)    # x
-  lines(TimeSeq, withinFactor[id,1:(maxT+1)+3*(maxT+1)], type='b', lwd=1, col=id+1)  # y
+  lines(TimeSeq, withinFactor[id,1:(maxT+1)+3*(maxT+1)], type='b', lwd=1, col=2)     # y
+  #lines(TimeSeq, withinFactor[id,1:(maxT+1)+1*(maxT+1)], type='b', lwd=1, col='pink') # TVcov_y
 }
 #hist(withinFactor[,"cov30"], breaks = 10)
 #hist(withinFactor[,"cov1"], breaks = 10)
@@ -436,7 +459,6 @@ Thus, with the raw data, we're going to create the data set that will be used in
 ```{r}
 setwd("C:/Users/yw110/OneDrive/PennState/ywR/Data")
 getwd()
-#setwd("C:/Users/yw110/OneDrive/PennState/LDE/1209test")
 ```
 
 ```{r}
